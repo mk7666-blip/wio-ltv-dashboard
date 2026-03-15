@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Customer LTV Prediction Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --purple:      #6B4EFF;
+    --purple-dark: #4B35CC;
+    --purple-light:#EDE9FF;
+    --navy:        #1A1A3E;
+    --green:       #15803D;
+    --green-light: #DCFCE7;
+    --red:         #DC2626;
+    --red-light:   #FEE2E2;
+    --teal:        #0D7377;
+    --gold:        #D97706;
+    --gray:        #64748B;
+    --gray-light:  #F1F5F9;
+    --border:      #E2E8F0;
+    --white:       #FFFFFF;
+    --bg:          #F5F4FF;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--navy);
+    min-height: 100vh;
+    padding: 2rem 1rem;
+  }
+
+  .container { max-width: 900px; margin: 0 auto; }
+
+  /* ── HEADER ── */
+  .header {
+    background: var(--navy);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+  .header h1 { font-size: 22px; color: #fff; font-weight: 600; margin-bottom: 4px; }
+  .header p  { font-size: 13px; color: #A5B4FC; line-height: 1.6; max-width: 560px; }
+  .logo { font-size: 24px; font-weight: 700; color: #fff; }
+  .logo span { color: var(--purple); }
+
+  /* ── FORMULA BANNER ── */
+  .formula {
+    background: var(--purple-light);
+    border: 1px solid #C4B5FD;
+    border-radius: 10px;
+    padding: 0.75rem 1.25rem;
+    margin-bottom: 1.5rem;
+    font-size: 13px;
+    color: var(--navy);
+    text-align: center;
+  }
+  .formula strong { color: var(--purple); }
+
+  /* ── GRID ── */
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem; }
+  @media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } }
+
+  /* ── CARD ── */
+  .card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.5rem;
+  }
+  .card-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gray);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 1.25rem;
+  }
+
+  /* ── SLIDERS ── */
+  .row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .row label { font-size: 13px; color: var(--gray); min-width: 160px; }
+  .row input[type=range] {
+    flex: 1;
+    -webkit-appearance: none;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+    outline: none;
+  }
+  .row input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--purple);
+    cursor: pointer;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 4px rgba(107,78,255,0.4);
+  }
+  .row .val-out {
+    font-size: 13px;
+    font-weight: 600;
+    min-width: 72px;
+    text-align: right;
+    color: var(--navy);
+  }
+  select {
+    flex: 1;
+    font-size: 13px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--white);
+    color: var(--navy);
+    outline: none;
+    cursor: pointer;
+  }
+  select:focus { border-color: var(--purple); }
+
+  /* ── LTV OUTPUT ── */
+  .ltv-big { font-size: 38px; font-weight: 700; margin-bottom: 2px; }
+  .ltv-pos { color: var(--purple); }
+  .ltv-neg { color: var(--red); }
+  .tier-badge {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 3px 12px;
+    border-radius: 20px;
+    margin-left: 8px;
+    vertical-align: middle;
+  }
+  .divider { height: 1px; background: var(--border); margin: 1rem 0; }
+
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat-box {
+    background: var(--gray-light);
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+  }
+  .stat-label { font-size: 11px; color: var(--gray); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .stat-val { font-size: 16px; font-weight: 600; color: var(--navy); }
+
+  /* ── P DETAIL ── */
+  .p-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px; }
+  .p-row .pk { color: var(--gray); }
+  .p-row .pv { font-weight: 600; color: var(--navy); }
+
+  /* ── BAR ── */
+  .bar-row { margin-bottom: 10px; }
+  .bar-row .bar-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--gray);
+    margin-bottom: 3px;
+  }
+  .bar-track { height: 10px; background: var(--gray-light); border-radius: 5px; overflow: hidden; }
+  .bar-fill  { height: 100%; border-radius: 5px; transition: width 0.25s ease; }
+
+  /* ── PROFILES ── */
+  .profiles { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 1.5rem; }
+  @media (max-width: 640px) { .profiles { grid-template-columns: repeat(2, 1fr); } }
+  .profile-btn {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.15s;
+    font-size: 12px;
+  }
+  .profile-btn:hover { border-color: var(--purple); background: var(--purple-light); }
+  .profile-btn .p-name { font-weight: 600; color: var(--navy); font-size: 13px; }
+  .profile-btn .p-tier { font-size: 11px; color: var(--gray); margin-top: 2px; }
+
+  /* ── CHART ── */
+  .chart-card { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 1.5rem; margin-bottom: 1.5rem; }
+  .chart-legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 12px; font-size: 12px; color: var(--gray); }
+  .chart-legend span { display: flex; align-items: center; gap: 5px; }
+  .swatch { width: 10px; height: 10px; border-radius: 2px; }
+
+  /* ── DECISION BOX ── */
+  .decision-box {
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    font-size: 13px;
+    font-weight: 500;
+    margin-top: 8px;
+  }
+
+  /* ── FOOTER ── */
+  .footer { font-size: 11px; color: var(--gray); text-align: center; margin-top: 2rem; line-height: 1.7; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <div class="header">
+    <div>
+      <h1>Customer LTV Prediction Dashboard</h1>
+      <p>Predict 12-month net LTV for any customer profile based on behavioral score, plan type, and product usage signals. Model acquisition decisions in real time.</p>
+    </div>
+  
+  </div>
+
+  <!-- Formula -->
+  <div class="formula">
+    <strong>LTV = (V1 + V2 + V3) × P(primary) − Cost to Serve</strong>
+    &nbsp;&nbsp;|&nbsp;&nbsp;
+    P = Score Multiplier × Plan Multiplier (cap 1.5)
+    &nbsp;&nbsp;|&nbsp;&nbsp;
+    Target LTV:CAC = 4:1
+  </div>
+
+  <!-- Quick profiles -->
+  <div style="margin-bottom: 0.75rem; font-size: 13px; font-weight: 500; color: var(--gray);">Load a profile:</div>
+  <div class="profiles">
+    <button class="profile-btn" onclick="loadProfile('sara')">
+      <div class="p-name">Sara, 22</div>
+      <div class="p-tier">Casual · Student</div>
+    </button>
+    <button class="profile-btn" onclick="loadProfile('aisha')">
+      <div class="p-name">Aisha, 28</div>
+      <div class="p-tier">Casual · Salary pass-through</div>
+    </button>
+    <button class="profile-btn" onclick="loadProfile('raj')">
+      <div class="p-name">Raj, 31</div>
+      <div class="p-tier">Core · FX-heavy</div>
+    </button>
+    <button class="profile-btn" onclick="loadProfile('david')">
+      <div class="p-name">David, 34</div>
+      <div class="p-tier">Champion · Standard</div>
+    </button>
+    <button class="profile-btn" onclick="loadProfile('james')">
+      <div class="p-name">James, 39</div>
+      <div class="p-tier">Champion · Salary</div>
+    </button>
+  </div>
+
+  <!-- Main grid -->
+  <div class="grid2">
+
+    <!-- Left: inputs -->
+    <div class="card">
+      <div class="card-title">Behavioral inputs</div>
+
+      <div class="row">
+        <label>Avg balance (AED)</label>
+        <input type="range" id="balance" min="0" max="100000" step="1000" value="20000">
+        <div class="val-out" id="balance-out">20,000</div>
+      </div>
+      <div class="row">
+        <label>Monthly FX (AED)</label>
+        <input type="range" id="fx" min="0" max="30000" step="500" value="5000">
+        <div class="val-out" id="fx-out">5,000</div>
+      </div>
+      <div class="row">
+        <label>Monthly card spend (AED)</label>
+        <input type="range" id="card" min="0" max="20000" step="500" value="4000">
+        <div class="val-out" id="card-out">4,000</div>
+      </div>
+      <div class="row">
+        <label>D+90 behavioral score</label>
+        <input type="range" id="score" min="0" max="100" step="1" value="58">
+        <div class="val-out" id="score-out">58</div>
+      </div>
+      <div class="row">
+        <label>Plan type</label>
+        <select id="plan">
+          <option value="1.4">Salary Plan (×1.4)</option>
+          <option value="1.2">Plus Plan free (×1.2)</option>
+          <option value="1.0" selected>Standard free (×1.0)</option>
+          <option value="0.8">Standard paid (×0.8)</option>
+        </select>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="card-title" style="margin-bottom:0.75rem;">Revenue breakdown (annual)</div>
+      <div id="rev-bars"></div>
+    </div>
+
+    <!-- Right: output -->
+    <div class="card">
+      <div class="card-title">12-month net LTV</div>
+
+      <div style="margin-bottom: 1rem;">
+        <div style="display:flex;align-items:baseline;gap:4px;flex-wrap:wrap;">
+          <span class="ltv-big" id="ltv-big">—</span>
+          <span class="tier-badge" id="tier-badge">—</span>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="card-title" style="margin-bottom:0.75rem;">P(primary) calculation</div>
+      <div class="p-row"><span class="pk">Score Multiplier</span><span class="pv" id="p-score-m">—</span></div>
+      <div class="p-row"><span class="pk">Plan Multiplier</span><span class="pv" id="p-plan-m">—</span></div>
+      <div class="p-row"><span class="pk">Score × Plan</span><span class="pv" id="p-raw">—</span></div>
+      <div class="p-row" style="border-top:1px solid var(--border);padding-top:6px;margin-top:2px;">
+        <span class="pk" style="font-weight:600;color:var(--navy);">P(primary) final</span>
+        <span class="pv" style="color:var(--purple);font-size:18px;" id="p-final">—</span>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="stat-grid">
+        <div class="stat-box">
+          <div class="stat-label">Max CAC (÷ 4)</div>
+          <div class="stat-val" id="max-cac">—</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Current LTV:CAC</div>
+          <div class="stat-val" id="ltv-cac">—</div>
+        </div>
+      </div>
+
+      <div class="decision-box" id="decision-box">—</div>
+    </div>
+  </div>
+
+  <!-- Sensitivity chart -->
+  <div class="chart-card">
+    <div style="font-size:14px;font-weight:600;color:var(--navy);margin-bottom:4px;">LTV sensitivity — score × plan</div>
+    <div style="font-size:12px;color:var(--gray);margin-bottom:1rem;">How LTV changes across behavioral scores for each plan type, at current balance / FX / card inputs</div>
+    <div style="position:relative;width:100%;height:280px;">
+      <canvas id="chart"></canvas>
+    </div>
+    <div class="chart-legend">
+      <span><span class="swatch" style="background:#4B35CC;"></span>Salary Plan (×1.4)</span>
+      <span><span class="swatch" style="background:#7F77DD;"></span>Plus Plan (×1.2)</span>
+      <span><span class="swatch" style="background:#AFA9EC;"></span>Standard free (×1.0)</span>
+      <span><span class="swatch" style="background:#B0BEC5;"></span>Standard paid (×0.8)</span>
+      <span><span class="swatch" style="background:#E2E8F0;border:1px dashed #9CA3AF;"></span>Zero line</span>
+    </div>
+  </div>
+
+  <div class="footer">
+    NIM 2.5% (A&M UAE Banking Pulse FY2024) · FX margin 1.8% (World Bank Remittance Prices Q4 2024) · Interchange 0.9% (UAE Central Bank) · Cost to Serve AED 300/yr (Wio FY2024 Annual Report est.) · Target LTV:CAC 4:1 (Fintech benchmark, BCG min 3:1) · P = Score × Plan Multiplier (cap 1.5) · Illustrative only
+  </div>
+
+</div>
+
+<script>
+const NIM=0.025, FXM=0.018, INT=0.009, CTS=300;
+const fmt = n => Math.abs(Math.round(n)).toLocaleString();
+const fmtLTV = n => (n>=0?'AED ':'–AED ')+fmt(n);
+
+const SCORE_M = s => s>=80?1.3:s>=60?1.1:s>=40?0.9:s>=20?0.6:0.3;
+const TIER = (s, pm) => {
+  if(s>=70) return 'Champion';
+  if(s>=40) return 'Core';
+  return 'Casual';
+};
+
+const profiles = {
+  sara:  {balance:900,   fx:0,     card:400,  score:25, plan:'0.8'},
+  aisha: {balance:1000,  fx:0,     card:400,  score:18, plan:'1.4'},
+  raj:   {balance:20000, fx:8100,  card:4500, score:58, plan:'1.0'},
+  david: {balance:70000, fx:17500, card:12000,score:76, plan:'1.0'},
+  james: {balance:58000, fx:14000, card:11000,score:88, plan:'1.4'},
+};
+
+function loadProfile(name){
+  const p = profiles[name];
+  document.getElementById('balance').value = p.balance;
+  document.getElementById('fx').value = p.fx;
+  document.getElementById('card').value = p.card;
+  document.getElementById('score').value = p.score;
+  document.getElementById('plan').value = p.plan;
+  calc();
+}
+
+let chartInst;
+function calc(){
+  const balance = +document.getElementById('balance').value;
+  const fx      = +document.getElementById('fx').value;
+  const card    = +document.getElementById('card').value;
+  const score   = +document.getElementById('score').value;
+  const planM   = +document.getElementById('plan').value;
+
+  document.getElementById('balance-out').textContent = fmt(balance);
+  document.getElementById('fx-out').textContent = fmt(fx);
+  document.getElementById('card-out').textContent = fmt(card);
+  document.getElementById('score-out').textContent = score;
+
+  const sm  = SCORE_M(score);
+  const raw = sm * planM;
+  const P   = Math.min(raw, 1.5);
+  const V1  = balance * NIM;
+  const V2  = fx * FXM * 12;
+  const V3  = card * INT * 12;
+  const rev = V1+V2+V3;
+  const ltv = rev * P - CTS;
+  const maxCac = ltv > 0 ? ltv/4 : 0;
+  const tier = TIER(score, planM);
+
+  // LTV big number
+  const ltvEl = document.getElementById('ltv-big');
+  ltvEl.textContent = fmtLTV(ltv);
+  ltvEl.className = 'ltv-big ' + (ltv>=0?'ltv-pos':'ltv-neg');
+
+  // Tier badge
+  const badge = document.getElementById('tier-badge');
+  badge.textContent = tier;
+  const tierColors = {
+    Champion: {bg:'#EDE9FF',color:'#4B35CC'},
+    Core:     {bg:'#E1F5EE',color:'#0F6E56'},
+    Casual:   {bg:'#FEE2E2',color:'#A32D2D'},
+  };
+  badge.style.background = tierColors[tier].bg;
+  badge.style.color = tierColors[tier].color;
+
+  // P detail
+  document.getElementById('p-score-m').textContent = sm+'×';
+  document.getElementById('p-plan-m').textContent = planM+'×';
+  document.getElementById('p-raw').textContent = raw.toFixed(2)+(raw>1.5?' → capped':'');
+  document.getElementById('p-final').textContent = P.toFixed(2);
+
+  // Stats
+  document.getElementById('max-cac').textContent = ltv>0 ? 'AED '+fmt(maxCac) : 'N/A';
+  const currentCac = {Champion:332,Core:185,Casual:160}[tier];
+  const ratio = ltv>0 ? (ltv/currentCac).toFixed(1)+'×' : 'N/A';
+  document.getElementById('ltv-cac').textContent = ratio;
+
+  // Decision
+  const dbox = document.getElementById('decision-box');
+  let dec, bg, col;
+  if(ltv < 0){ dec='Full suppress — negative LTV'; bg='#FEE2E2'; col='#A32D2D'; }
+  else if(maxCac < 160){ dec='CRM / referral only — max CAC below paid floor'; bg='#FFF7ED'; col='#9A3412'; }
+  else if(tier==='Champion'){ dec='Bid aggressively — strong P, high pLTV'; bg='#EDE9FF'; col='#4B35CC'; }
+  else if(tier==='Core'){ dec='Bid normally — scale efficiently within ceiling'; bg='#E1F5EE'; col='#0F6E56'; }
+  else { dec='Bid cautiously — monitor score trajectory'; bg='#F1F5F9'; col='#475569'; }
+  dbox.textContent = dec;
+  dbox.style.background = bg;
+  dbox.style.color = col;
+
+  // Revenue bars
+  const total = rev||1;
+  document.getElementById('rev-bars').innerHTML = [
+    {label:'V1 NII (deposit)',   val:V1, color:'#4B35CC'},
+    {label:'V2 FX income',       val:V2, color:'#0D7377'},
+    {label:'V3 Interchange',     val:V3, color:'#D97706'},
+  ].map(({label,val,color})=>`
+    <div class="bar-row">
+      <div class="bar-label">
+        <span>${label}</span><span>AED ${fmt(val)}</span>
+      </div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:${Math.max(val/total*100,0).toFixed(1)}%;background:${color};"></div>
+      </div>
+    </div>
+  `).join('');
+
+  // Chart
+  const scores = [0,10,20,30,40,50,60,70,80,90,100];
+  const plans = [
+    {m:1.4, color:'#4B35CC'},
+    {m:1.2, color:'#7F77DD'},
+    {m:1.0, color:'#AFA9EC'},
+    {m:0.8, color:'#B0BEC5'},
+  ];
+
+  const datasets = plans.map(({m,color})=>({
+    data: scores.map(s=>{
+      const sm2=SCORE_M(s);
+      const P2=Math.min(sm2*m,1.5);
+      return Math.round((V1+V2+V3)*P2-CTS);
+    }),
+    borderColor:color,
+    backgroundColor:color+'22',
+    borderWidth:2,
+    pointRadius:3,
+    pointHoverRadius:5,
+    tension:0.35,
+    fill:false,
+  }));
+
+  // Zero line
+  datasets.push({
+    data: scores.map(()=>0),
+    borderColor:'#E2E8F0',
+    borderWidth:1,
+    borderDash:[4,4],
+    pointRadius:0,
+    fill:false,
+  });
+
+  // Current score dot
+  const curIdx = Math.round(score/10);
+  const curLTV = Math.round(rev*P-CTS);
+  datasets.push({
+    data: scores.map((s,i)=>i===curIdx?curLTV:null),
+    borderColor:'#DC2626',
+    backgroundColor:'#DC2626',
+    pointRadius:scores.map((s,i)=>i===curIdx?8:0),
+    pointHoverRadius:10,
+    showLine:false,
+  });
+
+  if(chartInst) chartInst.destroy();
+  chartInst = new Chart(document.getElementById('chart'),{
+    type:'line',
+    data:{labels:scores,datasets},
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          callbacks:{
+            label: ctx => {
+              if(ctx.datasetIndex>=4) return null;
+              const planNames=['Salary','Plus','Std free','Std paid'];
+              const v=ctx.raw;
+              return `${planNames[ctx.datasetIndex]}: ${v>=0?'AED ':'–AED '}${fmt(Math.abs(v))}`;
+            }
+          }
+        }
+      },
+      scales:{
+        x:{
+          title:{display:true,text:'D+90 behavioral score',font:{size:11},color:'#64748B'},
+          grid:{color:'rgba(0,0,0,0.04)'},
+          ticks:{color:'#64748B',font:{size:11}},
+        },
+        y:{
+          title:{display:true,text:'12M net LTV (AED)',font:{size:11},color:'#64748B'},
+          grid:{color:'rgba(0,0,0,0.04)'},
+          ticks:{
+            color:'#64748B',
+            font:{size:11},
+            callback:v=>(v>=0?'':'–')+Math.abs(v).toLocaleString(),
+          }
+        }
+      }
+    }
+  });
+}
+
+['balance','fx','card','score','plan'].forEach(id=>{
+  document.getElementById(id).addEventListener('input',calc);
+});
+calc();
+</script>
+</body>
+</html>
